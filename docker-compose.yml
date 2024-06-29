@@ -1,0 +1,50 @@
+services:
+  portainer:
+    image: portainer/portainer
+    container_name: portainer
+    ports:
+      - "8000:8000"
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer
+    networks:
+      - experiment
+
+  microservice:
+    build: .
+    container_name: microservice
+    ports:
+      - "5000:5000"
+    networks:
+      - experiment
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./instrumentation/metric/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.enable-lifecycle'
+    networks:
+      - experiment
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=grafana
+    volumes:
+      - ./grafana:/etc/grafana/provisioning/datasources
+    networks:
+      - experiment
+
+networks:
+  experiment:
+    driver: bridge
