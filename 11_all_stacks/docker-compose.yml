@@ -1,0 +1,114 @@
+networks:
+  experiment: # all container will use this network
+    driver: bridge
+
+services:
+  microservice-1: # first microservice (upstream)
+    build: ./golang-app-1
+    container_name: microservice-1
+    ports:
+      - "1000:1000"
+    depends_on:
+      - logstash
+      # - microservice-2
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+    networks:
+      - experiment
+  
+  microservice-2: # second microservice (downstream)
+    build: ./golang-app-2
+    container_name: microservice-2
+    ports:
+      - "2000:2000"
+    depends_on:
+      - logstash
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+    networks:
+      - experiment
+
+  prometheus: # metric server
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml # prometheus config
+      - ./docker/prometheus:/prometheus # prometheus data
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    networks:
+      - experiment
+  
+  grafana: # metric viewer
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=grafana
+    volumes:
+      - ./docker/grafana/datasources:/etc/grafana/provisioning/datasources # grafana datasources
+      - ./docker/grafana/data:/var/lib/grafana # grafana data
+    networks:
+      - experiment
+  
+  elasticsearch: # log storage
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.13.2
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - experiment
+
+  logstash: # log exporter, stream logs to elasticsearch
+    image: docker.elastic.co/logstash/logstash:7.13.2
+    container_name: logstash
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf # logstash config
+    ports:
+      - "5000:5000"
+      - "5044:5044"
+    networks:
+      - experiment
+
+  kibana: # log viewer/dashboard
+    image: docker.elastic.co/kibana/kibana:7.13.2
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    networks:
+      - experiment
+
+  jaeger: # tracer server & viewer
+    image: jaegertracing/all-in-one:1.58
+    container_name: jaeger
+    ports:
+      - 6831:6831
+      - 6832:6832
+      - 5778:5778
+      - 16686:16686 # tracer dashboard
+      - 4317:4317
+      - 4318:4318
+      - 14250:14250
+      - 14268:14268
+      - 14269:14269
+      - 9411:9411
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+    networks:
+      - experiment
