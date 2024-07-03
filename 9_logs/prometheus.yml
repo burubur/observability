@@ -1,0 +1,18 @@
+global:
+  scrape_interval: 1s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"] # his own prometheus server
+        labels:
+          app_type: tools
+          app_name: prometheus
+
+  - job_name: "golang_app"
+    scrape_interval: 1s
+    static_configs:
+      - targets: ["microservice:1000"] # golang-app http server
+        labels:
+          app_type: http_server
+          app_name: microservice
